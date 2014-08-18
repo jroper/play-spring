@@ -4,7 +4,7 @@ import java.lang.annotation.Annotation
 import javax.inject.{Scope, Provider}
 
 import org.springframework.beans.TypeConverter
-import org.springframework.beans.factory.annotation.QualifierAnnotationAutowireCandidateResolver
+import org.springframework.beans.factory.annotation.{AutowiredAnnotationBeanPostProcessor, QualifierAnnotationAutowireCandidateResolver}
 import org.springframework.beans.factory.{NoUniqueBeanDefinitionException, NoSuchBeanDefinitionException, FactoryBean}
 import org.springframework.beans.factory.config.{AutowireCapableBeanFactory, BeanDefinitionHolder, ConstructorArgumentValues, BeanDefinition}
 import org.springframework.beans.factory.support._
@@ -47,6 +47,10 @@ class SpringApplicationLoader extends ApplicationLoader {
     ctx.getBean(classOf[Application])
   }
 
+  override def createInjector(environment: Environment, configuration: Configuration, modules: Seq[Any]): Option[Injector] = {
+    Some(createApplicationContext(environment, configuration, modules).getBean(classOf[Injector]))
+  }
+
   /**
    * Creates an application context for the given modules
    */
@@ -55,6 +59,8 @@ class SpringApplicationLoader extends ApplicationLoader {
     // todo, use an xml or classpath scanning context or something not dumb
     val ctx = new GenericApplicationContext()
     val beanFactory = ctx.getDefaultListableBeanFactory
+    beanFactory.setAutowireCandidateResolver(new QualifierAnnotationAutowireCandidateResolver())
+
 
     // Register the Spring injector as a singleton first
     beanFactory.registerSingleton("play-injector", new SpringInjector(beanFactory))
@@ -179,6 +185,7 @@ class SpringApplicationLoader extends ApplicationLoader {
     AnnotationUtils.getAnnotationAttributes(instance).asScala.foreach {
       case (attribute, value) => qualifier.setAttribute(attribute, value)
     }
+
     qualifier
   }
 
@@ -222,7 +229,9 @@ class ProviderFactoryBean[T](provider: Provider[T], objectType: Class[_], factor
 
   lazy val injectedProvider = {
     // Autowire the providers properties - Play needs this in a few places.
-    factory.autowireBeanProperties(provider, AutowireCapableBeanFactory.AUTOWIRE_BY_TYPE, false)
+    val bpp = new AutowiredAnnotationBeanPostProcessor()
+    bpp.setBeanFactory(factory)
+    bpp.processInjection(provider)
     provider
   }
 
@@ -311,6 +320,10 @@ object QualifierChecker extends QualifierAnnotationAutowireCandidateResolver {
  * A spring implementation of the injector.
  */
 class SpringInjector(factory: DefaultListableBeanFactory) extends Injector {
+
+  private val bpp = new AutowiredAnnotationBeanPostProcessor()
+  bpp.setBeanFactory(factory)
+
   def instanceOf[T](implicit ct: ClassTag[T]) = instanceOf(ct.runtimeClass).asInstanceOf[T]
 
   def instanceOf[T](clazz: Class[T]) = {
@@ -330,7 +343,11 @@ class SpringInjector(factory: DefaultListableBeanFactory) extends Injector {
 
           Play.logger.debug("Attempting just in time bean registration for bean with class " + clazz)
 
-          factory.getBean(clazz)
+          val bean = factory.getBean(clazz)
+          // todo - this ensures fields get injected, see if there's a way that this can be done automatically
+          bpp.processInjection(bean)
+          bean
+
         } else {
           throw e
         }

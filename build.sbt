@@ -6,7 +6,7 @@ def commonSettings: Seq[Setting[_]] = Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(playSpring, playSpringTest)
+  .aggregate(playSpring)
 
 lazy val playSpring = (project in file("core"))
   .settings(commonSettings: _*)
@@ -15,15 +15,5 @@ lazy val playSpring = (project in file("core"))
     libraryDependencies ++= Seq(
       "com.typesafe.play" %% "play" % "2.4-SNAPSHOT",
       "org.springframework" % "spring-context" % "4.0.6.RELEASE"
-    )
-  )
-
-lazy val playSpringTest = (project in file("test"))
-  .settings(commonSettings: _*)
-  .dependsOn(playSpring)
-  .settings(
-    name := "play-spring-test",
-    libraryDependencies ++= Seq(
-      "com.typesafe.play" %% "play-test" % "2.4-SNAPSHOT"
     )
   )

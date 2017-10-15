@@ -1,3 +1,5 @@
+**This module has been moved to https://github.com/playframework/play-spring-loader. Please use that instead.**
+
 # Play 2.4 Spring DI support
 
 This is a proof of concept to validate the abstraction created in Play 2.4 for runtime dependency injection, ensuring that it can be implemented by Spring.
